@@ -6,10 +6,8 @@ import openai
 import os
 
 
-# Set the OpenAI API key
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-# Define input and output folder paths
 inputFolderPath = r'C:\InternCSVs\GIS_Web_Services'
 outputFolderPath = r'C:\InternCSVs\GIS_Web_Services\output'
 os.makedirs(outputFolderPath, exist_ok=True)
