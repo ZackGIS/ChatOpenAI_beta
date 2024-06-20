@@ -66,7 +66,7 @@ def generateDescriptionFunction(title, url, tags):
     #return all the necessary fields
     return generated_desc
 
-
+# *** CHUNKSIZE VARIABLE AND LOOP WILL BE REMOVED ONCE EVERYTHING WORKS ***
 
 chunk_size = 206  # 206 is the first entry with a null description. Trying to see if things break down here.
 
