@@ -6,9 +6,10 @@ import openai
 import os
 
 
-openai.api_key = os.getenv("OPENAI_API_KEY")  # API key
+# Set the OpenAI API key
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
-# defining input and output folder paths as before
+# Define input and output folder paths
 inputFolderPath = r'C:\InternCSVs\GIS_Web_Services'
 outputFolderPath = r'C:\InternCSVs\GIS_Web_Services\output'
 os.makedirs(outputFolderPath, exist_ok=True)
@@ -19,33 +20,30 @@ os.makedirs(outputFolderPath, exist_ok=True)
 # columns and give n energy relevancy score from 1 to 10 based on a list of tags.
 tagging_prompt = ChatPromptTemplate.from_template(
     """
-Write the descriptions based on keywords you find in the title, url, and tags columns of the CSV files.
+Generate a one-sentence description for the following information based on the title, URL, and tags.
 
-Only extract the properties mentioned in the 'Classification' function.
-
-Passage:
-{input}
+Title: {title}
+URL: {url}
+Tags: {tags}
 """
-
 )
 
 
 # Borrowed from the example code
 class Classification(BaseModel):
 
-    # A Field to hold the description the ChatOpenAI llm comes up with. I think??
-    generatedDescription: str = Field(description="Write a one-sentence description generated based on the title, "
-                                                   "URL, and tags.")
+    # A Field to hold the description the ChatOpenAI llm comes up with.
+    generated_description: str = Field(description="Write a one-sentence description generated based on the title, URL, and tags.")
 
-    # A Field to hold the relevance score on a scale from 1 to 10 for each entry in the CSV file based on the tags???
-    energy_related: int = Field(description="How related is this to energy from 1 to 10")
+     # A Field to hold the relevance score on a scale from 1 to 10 for each entry in the CSV file based on the tags
+    #energy_related: int = Field(description="How related is this to energy from 1 to 10")
 
-    # these tags represent content related to specific issues. "Wells" might be related to oil drilling/exploration ??
-    tag: str = Field(..., enum=[
-        "environment", "leases", "blocks", "licenses", "bathymetry", "wells",
-        "pipelines", "infrastructure", "imagery", "weather", "geology", "seismic",
-        "emissions", "topography", "geomatics", "renewables"
-    ])
+    # these tags represent content related to specific issues. "Wells" might be related to oil drilling/exploration
+    #tag: str = Field(..., enum=[
+       # "environment", "leases", "blocks", "licenses", "bathymetry", "wells",
+       # "pipelines", "infrastructure", "imagery", "weather", "geology", "seismic",
+        #"emissions", "topography", "geomatics", "renewables"
+    #])
 
 
 # Instantiating the ChatOpenAI llm https://python.langchain.com/v0.2/docs/integrations/llms/openai/ using the
@@ -53,26 +51,46 @@ class Classification(BaseModel):
 llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0, max_tokens=None,
                  timeout=None).with_structured_output(Classification)
 
+# Creating a tegging_chain like the exapmple
+tagging_chain = tagging_prompt | llm
+
+
+def generateDescriptionFunction(title, url, tags):
+    #format the input for the tagging chain
+    inputData = {"title": title, "url": url, "tags": tags}
+
+    #use the invoke method to get the response
+    response = tagging_chain.invoke(inputData)
+
+    #extract the necessary fields from the response
+    generated_desc = response.generated_description
+
+    #return all the necessary fields
+    return generated_desc
+
+
 
 chunk_size = 206  # 206 is the first entry with a null description. Trying to see if things break down here.
 
 for filename in os.listdir(inputFolderPath):  # loop through files in the input folder
-    if filename.endswith('.csv'):    # make sure it's a CSV file
+    if filename.endswith('.csv'):  # make sure it's a CSV file
         csvFilePath = os.path.join(inputFolderPath, filename)
-        for chunk in pd.read_csv(csvFilePath, chunksize=chunk_size):    # use pandas to red the CSV at the csvFilePath
-            for index, row in chunk.iterrows():    # chunk is the dataframe object in this case. Start looping over the df.
+        for chunk in pd.read_csv(csvFilePath, chunksize=chunk_size):  # use pandas to read the CSV at the csvFilePath
+            for index, row in chunk.iterrows():  # chunk is the dataframe object in this case. Start looping over the df.
                 if pd.isnull(row['description']):  # check if the description is null
-                    title = row['title']   # create variables for the necessary rows
+                    title = row['title']  # create variables for the necessary rows
                     url = row['url']
                     tags = row['tags']
 
-                    #tagging_chain = tagging_prompt | llm   # honestly pretty lost here
+                    #call GDF here
+                    generated_description = generateDescriptionFunction(title, url, tags)
 
-                    # inp = f"Description: "
+                    #update the DataFrame with the generated values (trying to simplify things by not using energy related rating scale etc)
+                    chunk.at[index, 'description'] = generated_description
+                    #chunk.at[index, 'energy_related'] = energy_related
+                    #chunk.at[index, 'tag'] = tag
 
-                    # response = llm.invoke({"input": inp})
-
-                    # Save updated chunk to output CSV
+            # Save updated chunk to output CSV
             outputCSVFilePath = os.path.join(outputFolderPath, filename)
             chunk.to_csv(outputCSVFilePath, index=False)
             print(f"Processed chunk of DataFrame for {filename}:")
